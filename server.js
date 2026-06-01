@@ -5,7 +5,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const db = new Database('addresses.db');
+const DB_PATH = process.env.DB_PATH || 'addresses.db';
+const db = new Database(DB_PATH);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS addresses (
