@@ -693,9 +693,9 @@ function renderDropdown(results) {
   if (!results.length) { closeDropdown(); return; }
 
   locDropdown.innerHTML = results.map((r, i) => {
-    const parts  = r.display_name.split(', ');
-    const main   = parts.slice(0, 2).join(', ');
-    const sub    = parts.slice(2).join(', ');
+    const p    = r.properties;
+    const main = [p.name, p.street ? p.housenumber ? `${p.housenumber} ${p.street}` : p.street : ''].filter(Boolean).join(', ') || p.display_name || '';
+    const sub  = [p.city || p.town || p.village, p.state, p.country].filter(Boolean).join(', ');
     return `<div class="loc-option" data-idx="${i}">
       <div class="loc-main">${esc(main)}</div>
       ${sub ? `<div class="loc-sub">${esc(sub)}</div>` : ''}
@@ -715,11 +715,14 @@ function renderDropdown(results) {
 function selectResult(idx) {
   const r = locResults[idx];
   if (!r) return;
-  const parts = r.display_name.split(', ');
-  locInput.value = parts.slice(0, 2).join(', ');
+  const p    = r.properties;
+  const main = [p.name, p.street ? p.housenumber ? `${p.housenumber} ${p.street}` : p.street : ''].filter(Boolean).join(', ') || p.display_name || '';
+  const sub  = [p.city || p.town || p.village, p.state, p.country].filter(Boolean).join(', ');
+  locInput.value = sub ? `${main}, ${sub}` : main;
   closeDropdown();
-  placePendingPin(parseFloat(r.lat), parseFloat(r.lon));
-  map.setView([parseFloat(r.lat), parseFloat(r.lon)], 14);
+  const [lng, lat] = r.geometry.coordinates;
+  placePendingPin(lat, lng);
+  map.setView([lat, lng], 15);
   setStatus('Location set — click Save Pin when ready.', 'ok');
   document.getElementById('btn-save').disabled = false;
 }
@@ -734,10 +737,10 @@ locInput.addEventListener('input', () => {
 
   locDebounce = setTimeout(async () => {
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&addressdetails=0`;
-      const res  = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`;
+      const res  = await fetch(url);
       const data = await res.json();
-      renderDropdown(data);
+      renderDropdown(data.features || []);
     } catch {
       closeDropdown();
     }
@@ -774,15 +777,17 @@ document.getElementById('btn-geocode').addEventListener('click', async () => {
   document.getElementById('btn-geocode').disabled = true;
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}&limit=1`;
-    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(loc)}&limit=1&lang=en`;
+    const res  = await fetch(url);
     const data = await res.json();
+    const features = data.features || [];
 
-    if (!data.length) {
-      setStatus('Location not found. Try a more specific address, or click the map.', 'err');
+    if (!features.length) {
+      setStatus('Location not found. Try a more specific name, or click the map.', 'err');
     } else {
-      placePendingPin(parseFloat(data[0].lat), parseFloat(data[0].lon));
-      map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 14);
+      const [lng, lat] = features[0].geometry.coordinates;
+      placePendingPin(lat, lng);
+      map.setView([lat, lng], 15);
       setStatus('Found! Review the pin, then click Save Pin.', 'ok');
     }
   } catch {
