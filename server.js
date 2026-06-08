@@ -27,28 +27,61 @@ db.exec(`
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Proxy TikTok oEmbed to avoid CORS
-app.get('/api/tiktok-oembed', (req, res) => {
+function httpsGet(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', ...headers } }, (res) => {
+      // follow one redirect
+      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+        return httpsGet(res.headers.location, headers).then(resolve).catch(reject);
+      }
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => resolve(body));
+    }).on('error', reject);
+  });
+}
+
+function extractLocation(html) {
+  // TikTok embeds a JSON blob — try several known field patterns for POI/location
+  const patterns = [
+    /"poi":\s*\{[^}]*"name"\s*:\s*"([^"]+)"/,
+    /"locationCreated"\s*:\s*"([^"]+)"/,
+    /"address"\s*:\s*"([^"]+)"/,
+    /,"city"\s*:\s*"([^"]+)"/,
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m && m[1] && m[1].length > 1) return decodeURIComponent(m[1].replace(/\\u([\dA-Fa-f]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))));
+  }
+  return null;
+}
+
+// Proxy TikTok oEmbed + attempt location extraction
+app.get('/api/tiktok-oembed', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'url required' });
 
-  const oembed = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
-  https.get(oembed, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (upstream) => {
-    let body = '';
-    upstream.on('data', chunk => body += chunk);
-    upstream.on('end', () => {
-      try {
-        const json = JSON.parse(body);
-        res.json({
-          title: json.title || '',
-          thumbnail_url: json.thumbnail_url || '',
-          author: json.author_name || '',
-        });
-      } catch {
-        res.status(502).json({ error: 'Could not parse TikTok response' });
-      }
-    });
-  }).on('error', () => res.status(502).json({ error: 'Failed to reach TikTok' }));
+  try {
+    // Fetch oEmbed and page HTML in parallel
+    const [oembedBody, pageHtml] = await Promise.all([
+      httpsGet(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`),
+      httpsGet(url).catch(() => ''),
+    ]);
+
+    let title = '', thumbnail_url = '', author = '';
+    try {
+      const json = JSON.parse(oembedBody);
+      title         = json.title        || '';
+      thumbnail_url = json.thumbnail_url || '';
+      author        = json.author_name   || '';
+    } catch { /* oEmbed failed, continue with page data */ }
+
+    const location = extractLocation(pageHtml);
+
+    res.json({ title, thumbnail_url, author, location: location || null });
+  } catch {
+    res.status(502).json({ error: 'Failed to reach TikTok' });
+  }
 });
 
 app.get('/api/pins', (req, res) => {
