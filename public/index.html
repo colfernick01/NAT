@@ -654,7 +654,16 @@ document.getElementById('btn-fetch').addEventListener('click', async () => {
         document.getElementById('tt-thumb').style.display = 'none';
       }
       preview.classList.add('visible');
-      setStatus('TikTok loaded! Now enter the location.', 'ok');
+
+      if (data.location) {
+        locInput.value = data.location;
+        setStatus('TikTok loaded! Location pre-filled — confirm or search to pin it.', 'ok');
+        document.getElementById('btn-geocode').disabled = false;
+        // auto-trigger geocode so the pin appears immediately
+        document.getElementById('btn-geocode').click();
+      } else {
+        setStatus('TikTok loaded! Now enter the location.', 'ok');
+      }
     }
     document.getElementById('btn-geocode').disabled = false;
   } catch {
