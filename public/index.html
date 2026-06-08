@@ -101,6 +101,50 @@
     .form-row input:focus,
     .form-row textarea:focus { border-color: #fe2c55; }
 
+    /* ── Location autocomplete ── */
+    .location-wrap { position: relative; }
+
+    #location-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 2px);
+      left: 0; right: 0;
+      background: #1a1a1a;
+      border: 1px solid #fe2c55;
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 9999;
+      max-height: 220px;
+      overflow-y: auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+
+    #location-dropdown.open { display: block; }
+
+    .loc-option {
+      padding: 9px 12px;
+      font-size: 0.8rem;
+      color: #ddd;
+      cursor: pointer;
+      border-bottom: 1px solid #2a2a2a;
+      line-height: 1.3;
+    }
+
+    .loc-option:last-child { border-bottom: none; }
+
+    .loc-option:hover,
+    .loc-option.active { background: #2a2a2a; color: #fff; }
+
+    .loc-option .loc-main { font-weight: 600; color: #fff; }
+    .loc-option .loc-sub  { font-size: 0.7rem; color: #888; margin-top: 1px; }
+
+    #loc-searching {
+      padding: 10px 12px;
+      font-size: 0.75rem;
+      color: #666;
+      text-align: center;
+    }
+
     /* TikTok preview strip */
     #tt-preview {
       display: none;
@@ -472,7 +516,10 @@
 
     <div class="form-row">
       <label>Place / Location *</label>
-      <input type="text" id="input-location" placeholder="e.g. Joe's Crab Shack, Miami Beach, FL" />
+      <div class="location-wrap">
+        <input type="text" id="input-location" placeholder="e.g. Joe's Crab Shack, Miami Beach, FL" autocomplete="off" />
+        <div id="location-dropdown"></div>
+      </div>
     </div>
 
     <div class="form-row">
@@ -619,9 +666,99 @@ document.getElementById('btn-fetch').addEventListener('click', async () => {
   }
 });
 
-// ── Geocode location ─────────────────────────────────────────────────────────
+// ── Location autocomplete ─────────────────────────────────────────────────────
+const locInput    = document.getElementById('input-location');
+const locDropdown = document.getElementById('location-dropdown');
+let locDebounce   = null;
+let activeIdx     = -1;
+let locResults    = [];
+
+function closeDropdown() {
+  locDropdown.classList.remove('open');
+  activeIdx = -1;
+}
+
+function renderDropdown(results) {
+  locResults = results;
+  activeIdx  = -1;
+  if (!results.length) { closeDropdown(); return; }
+
+  locDropdown.innerHTML = results.map((r, i) => {
+    const parts  = r.display_name.split(', ');
+    const main   = parts.slice(0, 2).join(', ');
+    const sub    = parts.slice(2).join(', ');
+    return `<div class="loc-option" data-idx="${i}">
+      <div class="loc-main">${esc(main)}</div>
+      ${sub ? `<div class="loc-sub">${esc(sub)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  locDropdown.querySelectorAll('.loc-option').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      selectResult(parseInt(el.dataset.idx));
+    });
+  });
+
+  locDropdown.classList.add('open');
+}
+
+function selectResult(idx) {
+  const r = locResults[idx];
+  if (!r) return;
+  const parts = r.display_name.split(', ');
+  locInput.value = parts.slice(0, 2).join(', ');
+  closeDropdown();
+  placePendingPin(parseFloat(r.lat), parseFloat(r.lon));
+  map.setView([parseFloat(r.lat), parseFloat(r.lon)], 14);
+  setStatus('Location set — click Save Pin when ready.', 'ok');
+  document.getElementById('btn-save').disabled = false;
+}
+
+locInput.addEventListener('input', () => {
+  clearTimeout(locDebounce);
+  const q = locInput.value.trim();
+  if (q.length < 3) { closeDropdown(); return; }
+
+  locDropdown.innerHTML = '<div id="loc-searching">Searching…</div>';
+  locDropdown.classList.add('open');
+
+  locDebounce = setTimeout(async () => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&addressdetails=0`;
+      const res  = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      const data = await res.json();
+      renderDropdown(data);
+    } catch {
+      closeDropdown();
+    }
+  }, 350);
+});
+
+locInput.addEventListener('keydown', e => {
+  const opts = locDropdown.querySelectorAll('.loc-option');
+  if (!opts.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    activeIdx = Math.min(activeIdx + 1, opts.length - 1);
+    opts.forEach((o, i) => o.classList.toggle('active', i === activeIdx));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    activeIdx = Math.max(activeIdx - 1, 0);
+    opts.forEach((o, i) => o.classList.toggle('active', i === activeIdx));
+  } else if (e.key === 'Enter' && activeIdx >= 0) {
+    e.preventDefault();
+    selectResult(activeIdx);
+  } else if (e.key === 'Escape') {
+    closeDropdown();
+  }
+});
+
+locInput.addEventListener('blur', () => setTimeout(closeDropdown, 150));
+
+// ── Geocode button (fallback for manual entry) ────────────────────────────────
 document.getElementById('btn-geocode').addEventListener('click', async () => {
-  const loc = document.getElementById('input-location').value.trim();
+  const loc = locInput.value.trim();
   if (!loc) { setStatus('Enter a place or address first.', 'err'); return; }
 
   setStatus('Searching for location…');
@@ -635,9 +772,8 @@ document.getElementById('btn-geocode').addEventListener('click', async () => {
     if (!data.length) {
       setStatus('Location not found. Try a more specific address, or click the map.', 'err');
     } else {
-      const { lat, lon } = data[0];
-      placePendingPin(parseFloat(lat), parseFloat(lon));
-      map.setView([parseFloat(lat), parseFloat(lon)], 14);
+      placePendingPin(parseFloat(data[0].lat), parseFloat(data[0].lon));
+      map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 14);
       setStatus('Found! Review the pin, then click Save Pin.', 'ok');
     }
   } catch {
