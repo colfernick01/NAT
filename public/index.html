@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Polk County Florida — Collaborative Map</title>
+  <title>TikTok Map — Save Places from TikTok</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -13,72 +13,84 @@
       display: flex;
       height: 100vh;
       overflow: hidden;
-      background: #1a1a2e;
+      background: #010101;
       color: #eee;
     }
 
     /* ── Sidebar ── */
     #sidebar {
-      width: 340px;
-      min-width: 280px;
+      width: 360px;
+      min-width: 300px;
       display: flex;
       flex-direction: column;
-      background: #16213e;
-      border-right: 1px solid #0f3460;
+      background: #111;
+      border-right: 1px solid #222;
       z-index: 1000;
       overflow: hidden;
     }
 
     #sidebar-header {
-      padding: 18px 16px 12px;
-      background: #0f3460;
-      border-bottom: 1px solid #1a4a8a;
+      padding: 16px 16px 12px;
+      background: #000;
+      border-bottom: 1px solid #222;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tt-logo {
+      font-size: 1.5rem;
+      line-height: 1;
     }
 
     #sidebar-header h1 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: #4fc3f7;
-      letter-spacing: 0.3px;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.3px;
     }
 
     #sidebar-header p {
-      font-size: 0.75rem;
-      color: #90a4ae;
-      margin-top: 2px;
+      font-size: 0.7rem;
+      color: #888;
+      margin-top: 1px;
     }
 
     /* ── Form ── */
     #add-form {
-      padding: 14px 14px 10px;
-      border-bottom: 1px solid #0f3460;
-      background: #1a2a4a;
+      padding: 14px;
+      border-bottom: 1px solid #222;
+      background: #0a0a0a;
+      flex-shrink: 0;
     }
 
     #add-form h2 {
-      font-size: 0.8rem;
+      font-size: 0.72rem;
       text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #4fc3f7;
+      letter-spacing: 1.2px;
+      color: #fe2c55;
       margin-bottom: 10px;
+      font-weight: 700;
     }
 
-    .form-row { margin-bottom: 8px; }
+    .form-row { margin-bottom: 9px; }
 
     .form-row label {
       display: block;
-      font-size: 0.72rem;
-      color: #90a4ae;
+      font-size: 0.7rem;
+      color: #777;
       margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .form-row input,
     .form-row textarea {
       width: 100%;
-      padding: 7px 9px;
-      background: #0f1e3a;
-      border: 1px solid #1e3a6a;
-      border-radius: 6px;
+      padding: 8px 10px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
       color: #eee;
       font-size: 0.82rem;
       outline: none;
@@ -87,86 +99,99 @@
     }
 
     .form-row input:focus,
-    .form-row textarea:focus { border-color: #4fc3f7; }
+    .form-row textarea:focus { border-color: #fe2c55; }
 
-    .form-row-inline {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .form-row-inline .form-row { flex: 1; margin-bottom: 0; }
-
-    .color-row {
-      display: flex;
+    /* TikTok preview strip */
+    #tt-preview {
+      display: none;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 8px;
+      margin-bottom: 9px;
+      display: none;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 10px;
     }
 
-    .color-row label { font-size: 0.72rem; color: #90a4ae; }
+    #tt-preview.visible { display: flex; }
 
-    .color-swatches {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
+    #tt-thumb {
+      width: 48px;
+      height: 64px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+      background: #333;
     }
 
-    .swatch {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      cursor: pointer;
-      border: 2px solid transparent;
-      transition: transform 0.15s, border-color 0.15s;
+    #tt-info { min-width: 0; }
+
+    #tt-title {
+      font-size: 0.78rem;
+      color: #eee;
+      font-weight: 600;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
-    .swatch.selected,
-    .swatch:hover { border-color: #fff; transform: scale(1.15); }
+    #tt-author {
+      font-size: 0.7rem;
+      color: #fe2c55;
+      margin-top: 2px;
+    }
 
     .form-actions {
       display: flex;
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 4px;
     }
 
     button {
       cursor: pointer;
       border: none;
-      border-radius: 6px;
-      font-size: 0.82rem;
-      font-weight: 600;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
       transition: opacity 0.15s, transform 0.1s;
+      letter-spacing: 0.2px;
     }
 
     button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #btn-fetch {
+      flex: 1;
+      padding: 8px;
+      background: #fe2c55;
+      color: #fff;
+    }
 
     #btn-geocode {
       flex: 1;
       padding: 8px;
-      background: #1e88e5;
-      color: #fff;
+      background: #25f4ee;
+      color: #000;
     }
 
     #btn-save {
       flex: 1;
       padding: 8px;
-      background: #2e7d32;
-      color: #fff;
+      background: #fff;
+      color: #000;
     }
 
-    #btn-geocode:disabled,
-    #btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    #geocode-status {
-      font-size: 0.72rem;
-      color: #90a4ae;
-      margin-top: 4px;
+    #status-msg {
+      font-size: 0.7rem;
+      color: #777;
+      margin-top: 5px;
       min-height: 16px;
     }
 
-    #geocode-status.ok { color: #66bb6a; }
-    #geocode-status.err { color: #ef5350; }
+    #status-msg.ok { color: #25f4ee; }
+    #status-msg.err { color: #fe2c55; }
 
     /* ── Entries list ── */
     #entries-header {
@@ -174,39 +199,42 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
     }
 
     #entries-header h2 {
-      font-size: 0.8rem;
+      font-size: 0.72rem;
       text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #4fc3f7;
+      letter-spacing: 1.2px;
+      color: #fe2c55;
+      font-weight: 700;
     }
 
     #entry-count {
-      font-size: 0.72rem;
-      color: #90a4ae;
-      background: #0f3460;
-      padding: 2px 7px;
+      font-size: 0.7rem;
+      color: #777;
+      background: #1a1a1a;
+      padding: 2px 8px;
       border-radius: 10px;
     }
 
     #search-box {
       padding: 0 14px 8px;
+      flex-shrink: 0;
     }
 
     #search-input {
       width: 100%;
-      padding: 6px 9px;
-      background: #0f1e3a;
-      border: 1px solid #1e3a6a;
-      border-radius: 6px;
+      padding: 7px 10px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
       color: #eee;
       font-size: 0.8rem;
       outline: none;
     }
 
-    #search-input:focus { border-color: #4fc3f7; }
+    #search-input:focus { border-color: #fe2c55; }
 
     #entries-list {
       flex: 1;
@@ -214,126 +242,200 @@
       padding: 0 8px 8px;
     }
 
-    #entries-list::-webkit-scrollbar { width: 5px; }
+    #entries-list::-webkit-scrollbar { width: 4px; }
     #entries-list::-webkit-scrollbar-track { background: transparent; }
-    #entries-list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+    #entries-list::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
 
     .entry-card {
-      background: #0f1e3a;
-      border: 1px solid #1e3a6a;
-      border-radius: 8px;
-      padding: 10px 10px 8px;
-      margin-bottom: 6px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 0;
+      margin-bottom: 7px;
       cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
+      transition: border-color 0.15s;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      gap: 0;
+    }
+
+    .entry-card:hover { border-color: #fe2c55; }
+
+    .entry-thumb-wrap {
+      width: 56px;
+      flex-shrink: 0;
+      background: #222;
       position: relative;
     }
 
-    .entry-card:hover { border-color: #4fc3f7; background: #162040; }
-
-    .entry-dot {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      margin-right: 6px;
-      flex-shrink: 0;
-      margin-top: 2px;
+    .entry-thumb {
+      width: 56px;
+      height: 75px;
+      object-fit: cover;
+      display: block;
     }
 
-    .entry-label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #e3f2fd;
+    .entry-thumb-placeholder {
+      width: 56px;
+      height: 75px;
       display: flex;
-      align-items: flex-start;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      background: #222;
     }
 
-    .entry-address {
-      font-size: 0.75rem;
-      color: #78909c;
-      margin-top: 2px;
-      margin-left: 16px;
+    .entry-body {
+      flex: 1;
+      padding: 8px 32px 8px 10px;
+      min-width: 0;
     }
 
-    .entry-meta {
-      font-size: 0.68rem;
-      color: #546e7a;
+    .entry-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #eee;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.3;
+    }
+
+    .entry-location {
+      font-size: 0.72rem;
+      color: #25f4ee;
       margin-top: 4px;
-      margin-left: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .entry-notes {
-      font-size: 0.74rem;
-      color: #90a4ae;
+    .entry-location::before { content: '📍 '; }
+
+    .entry-author {
+      font-size: 0.68rem;
+      color: #666;
       margin-top: 3px;
-      margin-left: 16px;
+    }
+
+    .entry-notes-text {
+      font-size: 0.7rem;
+      color: #888;
+      margin-top: 3px;
       font-style: italic;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
     .entry-delete {
       position: absolute;
-      top: 8px;
-      right: 8px;
+      top: 6px;
+      right: 6px;
       background: transparent;
-      color: #546e7a;
-      font-size: 0.85rem;
+      color: #444;
+      font-size: 0.75rem;
       padding: 2px 5px;
       border-radius: 4px;
     }
 
-    .entry-delete:hover { background: #1a1a2e; color: #ef5350; }
+    .entry-delete:hover { background: #111; color: #fe2c55; }
 
     .empty-state {
       text-align: center;
-      padding: 30px 20px;
-      color: #546e7a;
+      padding: 40px 20px;
+      color: #444;
       font-size: 0.82rem;
+      line-height: 1.6;
     }
+
+    .empty-state .big { font-size: 2rem; margin-bottom: 8px; }
 
     /* ── Map ── */
-    #map {
-      flex: 1;
-      height: 100%;
-    }
-
-    /* ── Map click hint ── */
-    #map-hint {
-      position: absolute;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(15,52,96,0.92);
-      color: #90caf9;
-      font-size: 0.78rem;
-      padding: 6px 14px;
-      border-radius: 20px;
-      pointer-events: none;
-      z-index: 999;
-      border: 1px solid #1e3a6a;
-      white-space: nowrap;
-    }
+    #map { flex: 1; height: 100%; }
 
     /* ── Popup styling ── */
     .leaflet-popup-content-wrapper {
-      background: #16213e;
+      background: #111;
       color: #eee;
-      border: 1px solid #1e3a6a;
-      border-radius: 10px;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
     }
 
-    .leaflet-popup-tip { background: #16213e; }
+    .leaflet-popup-content {
+      margin: 0;
+      width: 220px !important;
+    }
 
-    .popup-label { font-weight: 700; font-size: 0.95rem; color: #4fc3f7; }
-    .popup-address { font-size: 0.8rem; color: #90a4ae; margin-top: 3px; }
-    .popup-notes { font-size: 0.78rem; color: #b0bec5; margin-top: 4px; font-style: italic; }
-    .popup-meta { font-size: 0.7rem; color: #546e7a; margin-top: 5px; }
+    .leaflet-popup-tip { background: #111; }
+
+    .popup-thumb {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+      background: #222;
+    }
+
+    .popup-thumb-placeholder {
+      width: 100%;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      background: #222;
+    }
+
+    .popup-body { padding: 10px 12px 12px; }
+
+    .popup-title {
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: #fff;
+      line-height: 1.3;
+    }
+
+    .popup-location {
+      font-size: 0.75rem;
+      color: #25f4ee;
+      margin-top: 4px;
+    }
+
+    .popup-notes {
+      font-size: 0.74rem;
+      color: #888;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    .popup-link {
+      display: block;
+      margin-top: 10px;
+      padding: 7px 12px;
+      background: #fe2c55;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 7px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-align: center;
+      transition: opacity 0.15s;
+    }
+
+    .popup-link:hover { opacity: 0.85; }
 
     /* ── Responsive ── */
-    @media (max-width: 600px) {
-      #sidebar { width: 100%; height: 45vh; border-right: none; border-bottom: 1px solid #0f3460; }
+    @media (max-width: 620px) {
+      #sidebar { width: 100%; height: 50vh; border-right: none; border-bottom: 1px solid #222; min-width: 0; }
       body { flex-direction: column; }
-      #map { height: 55vh; }
+      #map { height: 50vh; }
     }
   </style>
 </head>
@@ -341,179 +443,205 @@
 
 <div id="sidebar">
   <div id="sidebar-header">
-    <h1>📍 Polk County, FL — Address Map</h1>
-    <p>Collaborative address tracker — changes save for everyone</p>
+    <div class="tt-logo">🎵</div>
+    <div>
+      <h1>TikTok Map</h1>
+      <p>Bookmark places from TikTok — never forget where it was</p>
+    </div>
   </div>
 
   <div id="add-form">
-    <h2>Add an Address</h2>
+    <h2>Save a TikTok Place</h2>
 
     <div class="form-row">
-      <label>Your Name</label>
-      <input type="text" id="input-name" placeholder="Anonymous" />
+      <label>TikTok Link *</label>
+      <input type="url" id="input-tiktok-url" placeholder="https://www.tiktok.com/@user/video/…" />
+    </div>
+
+    <div class="form-actions" style="margin-bottom:9px">
+      <button id="btn-fetch">🎵 Load TikTok</button>
+    </div>
+
+    <div id="tt-preview">
+      <img id="tt-thumb" src="" alt="thumbnail" />
+      <div id="tt-info">
+        <div id="tt-title"></div>
+        <div id="tt-author"></div>
+      </div>
     </div>
 
     <div class="form-row">
-      <label>Label / Description *</label>
-      <input type="text" id="input-label" placeholder="e.g. John's House" />
-    </div>
-
-    <div class="form-row">
-      <label>Address *</label>
-      <input type="text" id="input-address" placeholder="123 Main St, Lakeland, FL" />
+      <label>Place / Location *</label>
+      <input type="text" id="input-location" placeholder="e.g. Joe's Crab Shack, Miami Beach, FL" />
     </div>
 
     <div class="form-row">
       <label>Notes (optional)</label>
-      <textarea id="input-notes" rows="2" placeholder="Any additional info…"></textarea>
+      <textarea id="input-notes" rows="2" placeholder="Looks amazing, must visit in summer…"></textarea>
     </div>
 
-    <div class="color-row">
-      <label>Pin color:</label>
-      <div class="color-swatches" id="color-swatches"></div>
-    </div>
-
-    <div id="geocode-status"></div>
+    <div id="status-msg"></div>
 
     <div class="form-actions">
-      <button id="btn-geocode">🔍 Find on Map</button>
-      <button id="btn-save" disabled>💾 Save Pin</button>
+      <button id="btn-geocode" disabled>🔍 Find on Map</button>
+      <button id="btn-save" disabled>📍 Save Pin</button>
     </div>
   </div>
 
   <div id="entries-header">
-    <h2>Saved Addresses</h2>
+    <h2>Saved Places</h2>
     <span id="entry-count">0</span>
   </div>
 
   <div id="search-box">
-    <input type="text" id="search-input" placeholder="Search saved addresses…" />
+    <input type="text" id="search-input" placeholder="Search saved places…" />
   </div>
 
-  <div id="entries-list"></div>
+  <div id="entries-list">
+    <div class="empty-state">
+      <div class="big">🗺️</div>
+      Paste a TikTok link above to pin a place on the map.
+    </div>
+  </div>
 </div>
 
 <div id="map"></div>
-<div id="map-hint">Click anywhere on the map to place a pin, or use the search above</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// ── Config ──────────────────────────────────────────────────────────────────
-const POLK_CENTER = [27.9944, -81.5158];
-const POLK_ZOOM   = 11;
-
-const COLORS = [
-  { hex: '#e74c3c', name: 'Red'    },
-  { hex: '#e67e22', name: 'Orange' },
-  { hex: '#f1c40f', name: 'Yellow' },
-  { hex: '#2ecc71', name: 'Green'  },
-  { hex: '#3498db', name: 'Blue'   },
-  { hex: '#9b59b6', name: 'Purple' },
-  { hex: '#1abc9c', name: 'Teal'   },
-  { hex: '#e91e63', name: 'Pink'   },
-];
-
-let selectedColor = COLORS[0].hex;
+// ── State ────────────────────────────────────────────────────────────────────
 let pendingLat = null, pendingLng = null;
-let markers = {};       // id → L.marker
-let allEntries = [];    // cache for search
+let pendingMarker = null;
+let markers = {};
+let allPins = [];
+let ttData = { title: '', thumbnail_url: '', author: '' };
 
-// ── Map setup ───────────────────────────────────────────────────────────────
-const map = L.map('map', { zoomControl: true }).setView(POLK_CENTER, POLK_ZOOM);
+// ── Map setup ────────────────────────────────────────────────────────────────
+const map = L.map('map').setView([20, 0], 2);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
   maxZoom: 19,
 }).addTo(map);
 
-// ── Color swatches ──────────────────────────────────────────────────────────
-const swatchContainer = document.getElementById('color-swatches');
-COLORS.forEach(c => {
-  const el = document.createElement('div');
-  el.className = 'swatch' + (c.hex === selectedColor ? ' selected' : '');
-  el.style.background = c.hex;
-  el.title = c.name;
-  el.addEventListener('click', () => {
-    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
-    el.classList.add('selected');
-    selectedColor = c.hex;
-  });
-  swatchContainer.appendChild(el);
-});
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-function makeIcon(color) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
-    <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24c0-6.6-5.4-12-12-12z"
-          fill="${color}" stroke="#fff" stroke-width="1.5"/>
-    <circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/>
-  </svg>`;
-  return L.divIcon({
-    html: svg,
-    className: '',
-    iconSize: [24, 36],
-    iconAnchor: [12, 36],
-    popupAnchor: [0, -38],
-  });
-}
-
-function formatDate(dt) {
-  return new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function setStatus(msg, type = '') {
-  const el = document.getElementById('geocode-status');
+  const el = document.getElementById('status-msg');
   el.textContent = msg;
   el.className = type;
 }
 
-// ── Pending pin (before save) ────────────────────────────────────────────────
-let pendingMarker = null;
+function makeTtIcon(thumbUrl) {
+  const img = thumbUrl
+    ? `<img src="${thumbUrl}" style="width:36px;height:48px;object-fit:cover;border-radius:4px;display:block;" crossorigin="anonymous" onerror="this.style.display='none'" />`
+    : `<div style="width:36px;height:48px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;background:#222;border-radius:4px;">🎵</div>`;
 
+  return L.divIcon({
+    html: `<div style="position:relative;width:36px;">
+      ${img}
+      <div style="
+        position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);
+        width:0;height:0;
+        border-left:6px solid transparent;
+        border-right:6px solid transparent;
+        border-top:10px solid #fe2c55;
+      "></div>
+    </div>`,
+    className: '',
+    iconSize: [36, 56],
+    iconAnchor: [18, 56],
+    popupAnchor: [0, -58],
+  });
+}
+
+function makeGrayIcon() {
+  return L.divIcon({
+    html: `<div style="width:12px;height:12px;background:#fe2c55;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.5);"></div>`,
+    className: '',
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+  });
+}
+
+// ── Pending pin ──────────────────────────────────────────────────────────────
 function placePendingPin(lat, lng) {
   pendingLat = lat; pendingLng = lng;
   if (pendingMarker) map.removeLayer(pendingMarker);
-  pendingMarker = L.marker([lat, lng], {
-    icon: makeIcon('#aaa'),
-    opacity: 0.7,
-    zIndexOffset: 1000,
-  }).addTo(map).bindPopup('<span style="color:#90a4ae;font-size:0.8rem">Fill in details and click Save Pin</span>').openPopup();
+  pendingMarker = L.marker([lat, lng], { icon: makeGrayIcon(), zIndexOffset: 1000 }).addTo(map);
   document.getElementById('btn-save').disabled = false;
 }
 
-// ── Map click → place pending pin ───────────────────────────────────────────
 map.on('click', e => {
   placePendingPin(e.latlng.lat, e.latlng.lng);
-  setStatus(`Pin placed at ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`, 'ok');
+  setStatus(`Pin placed — click Save Pin when ready.`, 'ok');
 });
 
-// ── Geocode ──────────────────────────────────────────────────────────────────
+// ── Fetch TikTok metadata ────────────────────────────────────────────────────
+document.getElementById('btn-fetch').addEventListener('click', async () => {
+  const url = document.getElementById('input-tiktok-url').value.trim();
+  if (!url) { setStatus('Paste a TikTok link first.', 'err'); return; }
+
+  setStatus('Loading TikTok info…');
+  document.getElementById('btn-fetch').disabled = true;
+
+  try {
+    const res = await fetch(`/api/tiktok-oembed?url=${encodeURIComponent(url)}`);
+    const data = await res.json();
+
+    if (data.error) {
+      setStatus('Could not load TikTok — you can still save manually.', 'err');
+      ttData = { title: '', thumbnail_url: '', author: '' };
+    } else {
+      ttData = data;
+      const preview = document.getElementById('tt-preview');
+      document.getElementById('tt-title').textContent = data.title || '(no title)';
+      document.getElementById('tt-author').textContent = data.author ? '@' + data.author : '';
+      if (data.thumbnail_url) {
+        document.getElementById('tt-thumb').src = data.thumbnail_url;
+      } else {
+        document.getElementById('tt-thumb').style.display = 'none';
+      }
+      preview.classList.add('visible');
+      setStatus('TikTok loaded! Now enter the location.', 'ok');
+    }
+    document.getElementById('btn-geocode').disabled = false;
+  } catch {
+    setStatus('Network error — you can still save manually.', 'err');
+    document.getElementById('btn-geocode').disabled = false;
+    ttData = { title: '', thumbnail_url: '', author: '' };
+  } finally {
+    document.getElementById('btn-fetch').disabled = false;
+  }
+});
+
+// ── Geocode location ─────────────────────────────────────────────────────────
 document.getElementById('btn-geocode').addEventListener('click', async () => {
-  const raw = document.getElementById('input-address').value.trim();
-  if (!raw) { setStatus('Enter an address first.', 'err'); return; }
+  const loc = document.getElementById('input-location').value.trim();
+  if (!loc) { setStatus('Enter a place or address first.', 'err'); return; }
 
-  const query = raw.toLowerCase().includes('florida') || raw.toLowerCase().includes(', fl')
-    ? raw
-    : raw + ', Polk County, Florida';
-
-  setStatus('Searching…');
+  setStatus('Searching for location…');
   document.getElementById('btn-geocode').disabled = true;
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=us`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}&limit=1`;
     const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
     const data = await res.json();
 
     if (!data.length) {
-      setStatus('Address not found. Try adding "Lakeland, FL" or click on the map.', 'err');
+      setStatus('Location not found. Try a more specific address, or click the map.', 'err');
     } else {
-      const { lat, lon, display_name } = data[0];
+      const { lat, lon } = data[0];
       placePendingPin(parseFloat(lat), parseFloat(lon));
-      map.setView([parseFloat(lat), parseFloat(lon)], 16);
-      setStatus('Found! Review pin, then click Save Pin.', 'ok');
+      map.setView([parseFloat(lat), parseFloat(lon)], 14);
+      setStatus('Found! Review the pin, then click Save Pin.', 'ok');
     }
   } catch {
-    setStatus('Geocoding failed. Click on the map instead.', 'err');
+    setStatus('Search failed. Click the map to place a pin manually.', 'err');
   } finally {
     document.getElementById('btn-geocode').disabled = false;
   }
@@ -521,106 +649,143 @@ document.getElementById('btn-geocode').addEventListener('click', async () => {
 
 // ── Save pin ─────────────────────────────────────────────────────────────────
 document.getElementById('btn-save').addEventListener('click', async () => {
-  const label   = document.getElementById('input-label').value.trim();
-  const address = document.getElementById('input-address').value.trim();
-  const notes   = document.getElementById('input-notes').value.trim();
-  const name    = document.getElementById('input-name').value.trim() || 'Anonymous';
+  const tiktok_url   = document.getElementById('input-tiktok-url').value.trim();
+  const location_name = document.getElementById('input-location').value.trim();
+  const notes        = document.getElementById('input-notes').value.trim();
 
-  if (!label)   { setStatus('Please enter a label.', 'err'); return; }
-  if (!address) { setStatus('Please enter an address.', 'err'); return; }
-  if (pendingLat == null) { setStatus('Place a pin first (search or click map).', 'err'); return; }
+  if (!tiktok_url)    { setStatus('Paste a TikTok link first.', 'err'); return; }
+  if (!location_name) { setStatus('Enter a location name.', 'err'); return; }
+  if (pendingLat == null) { setStatus('Find a location or click the map to place a pin.', 'err'); return; }
+
+  document.getElementById('btn-save').disabled = true;
 
   try {
-    const res = await fetch('/api/addresses', {
+    const res = await fetch('/api/pins', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, address, notes, lat: pendingLat, lng: pendingLng, added_by: name, color: selectedColor }),
+      body: JSON.stringify({
+        tiktok_url,
+        title: ttData.title,
+        thumbnail_url: ttData.thumbnail_url,
+        author: ttData.author,
+        location_name,
+        lat: pendingLat,
+        lng: pendingLng,
+        notes,
+      }),
     });
     if (!res.ok) throw new Error();
-    const entry = await res.json();
+    const pin = await res.json();
 
     if (pendingMarker) { map.removeLayer(pendingMarker); pendingMarker = null; }
     pendingLat = pendingLng = null;
-    document.getElementById('btn-save').disabled = true;
 
-    // clear form
-    ['input-label','input-address','input-notes'].forEach(id => document.getElementById(id).value = '');
+    // Reset form
+    document.getElementById('input-tiktok-url').value = '';
+    document.getElementById('input-location').value = '';
+    document.getElementById('input-notes').value = '';
+    document.getElementById('tt-preview').classList.remove('visible');
+    document.getElementById('tt-thumb').src = '';
+    document.getElementById('tt-thumb').style.display = '';
+    document.getElementById('btn-geocode').disabled = true;
+    ttData = { title: '', thumbnail_url: '', author: '' };
+
     setStatus('Saved!', 'ok');
     setTimeout(() => setStatus(''), 3000);
 
-    addMarker(entry);
-    prependCard(entry);
-    allEntries.unshift(entry);
+    addMarker(pin);
+    prependCard(pin);
+    allPins.unshift(pin);
     updateCount();
   } catch {
     setStatus('Save failed. Please try again.', 'err');
+    document.getElementById('btn-save').disabled = false;
   }
 });
 
-// ── Render marker ────────────────────────────────────────────────────────────
-function addMarker(entry) {
-  const m = L.marker([entry.lat, entry.lng], { icon: makeIcon(entry.color || '#e74c3c') }).addTo(map);
+// ── Marker ───────────────────────────────────────────────────────────────────
+function addMarker(pin) {
+  const icon = makeTtIcon(pin.thumbnail_url);
+  const m = L.marker([pin.lat, pin.lng], { icon }).addTo(map);
+
+  const thumbHtml = pin.thumbnail_url
+    ? `<img class="popup-thumb" src="${esc(pin.thumbnail_url)}" alt="thumbnail" crossorigin="anonymous" onerror="this.style.display='none'" />`
+    : `<div class="popup-thumb-placeholder">🎵</div>`;
+
   m.bindPopup(`
-    <div class="popup-label">${escHtml(entry.label)}</div>
-    <div class="popup-address">${escHtml(entry.address)}</div>
-    ${entry.notes ? `<div class="popup-notes">${escHtml(entry.notes)}</div>` : ''}
-    <div class="popup-meta">Added by ${escHtml(entry.added_by)} · ${formatDate(entry.created_at)}</div>
-  `);
-  markers[entry.id] = m;
+    ${thumbHtml}
+    <div class="popup-body">
+      <div class="popup-title">${esc(pin.title || pin.location_name)}</div>
+      <div class="popup-location">${esc(pin.location_name)}</div>
+      ${pin.notes ? `<div class="popup-notes">${esc(pin.notes)}</div>` : ''}
+      <a class="popup-link" href="${esc(pin.tiktok_url)}" target="_blank" rel="noopener">▶ Watch on TikTok</a>
+    </div>
+  `, { maxWidth: 240 });
+
+  markers[pin.id] = m;
   return m;
 }
 
-// ── Render sidebar card ───────────────────────────────────────────────────────
-function prependCard(entry) {
+// ── Sidebar card ─────────────────────────────────────────────────────────────
+function prependCard(pin) {
   const list = document.getElementById('entries-list');
-  const card = buildCard(entry);
-  list.prepend(card);
+  const empty = list.querySelector('.empty-state');
+  if (empty) empty.remove();
+  list.prepend(buildCard(pin));
 }
 
-function buildCard(entry) {
+function buildCard(pin) {
   const card = document.createElement('div');
   card.className = 'entry-card';
-  card.dataset.id = entry.id;
+  card.dataset.id = pin.id;
+
+  const thumbHtml = pin.thumbnail_url
+    ? `<img class="entry-thumb" src="${esc(pin.thumbnail_url)}" alt="thumb" crossorigin="anonymous" onerror="this.parentElement.innerHTML='<div class=entry-thumb-placeholder>🎵</div>'" />`
+    : `<div class="entry-thumb-placeholder">🎵</div>`;
+
   card.innerHTML = `
-    <div class="entry-label">
-      <span class="entry-dot" style="background:${entry.color || '#e74c3c'}"></span>
-      ${escHtml(entry.label)}
+    <div class="entry-thumb-wrap">${thumbHtml}</div>
+    <div class="entry-body">
+      <div class="entry-title">${esc(pin.title || '(no title)')}</div>
+      <div class="entry-location">${esc(pin.location_name)}</div>
+      ${pin.author ? `<div class="entry-author">@${esc(pin.author)}</div>` : ''}
+      ${pin.notes ? `<div class="entry-notes-text">${esc(pin.notes)}</div>` : ''}
     </div>
-    <div class="entry-address">${escHtml(entry.address)}</div>
-    ${entry.notes ? `<div class="entry-notes">${escHtml(entry.notes)}</div>` : ''}
-    <div class="entry-meta">By ${escHtml(entry.added_by)} · ${formatDate(entry.created_at)}</div>
-    <button class="entry-delete" title="Delete" data-id="${entry.id}">✕</button>
+    <button class="entry-delete" title="Delete" data-id="${pin.id}">✕</button>
   `;
+
   card.querySelector('.entry-delete').addEventListener('click', async e => {
     e.stopPropagation();
-    if (!confirm(`Delete "${entry.label}"?`)) return;
-    const res = await fetch(`/api/addresses/${entry.id}`, { method: 'DELETE' });
+    if (!confirm(`Delete pin for "${pin.location_name}"?`)) return;
+    const res = await fetch(`/api/pins/${pin.id}`, { method: 'DELETE' });
     if (res.ok) {
       card.remove();
-      if (markers[entry.id]) { map.removeLayer(markers[entry.id]); delete markers[entry.id]; }
-      allEntries = allEntries.filter(a => a.id !== entry.id);
+      if (markers[pin.id]) { map.removeLayer(markers[pin.id]); delete markers[pin.id]; }
+      allPins = allPins.filter(p => p.id !== pin.id);
       updateCount();
     }
   });
+
   card.addEventListener('click', () => {
-    map.setView([entry.lat, entry.lng], 17);
-    if (markers[entry.id]) markers[entry.id].openPopup();
+    map.setView([pin.lat, pin.lng], 15);
+    if (markers[pin.id]) markers[pin.id].openPopup();
   });
+
   return card;
 }
 
-// ── Load existing ─────────────────────────────────────────────────────────────
+// ── Load all ─────────────────────────────────────────────────────────────────
 async function loadAll() {
-  const res  = await fetch('/api/addresses');
+  const res  = await fetch('/api/pins');
   const list = await res.json();
-  allEntries = list;
+  allPins = list;
   const container = document.getElementById('entries-list');
 
   if (!list.length) {
-    container.innerHTML = '<div class="empty-state">No addresses yet.<br>Add one above or click the map.</div>';
+    container.innerHTML = `<div class="empty-state"><div class="big">🗺️</div>Paste a TikTok link above to pin a place on the map.</div>`;
   } else {
     container.innerHTML = '';
-    list.forEach(e => { addMarker(e); container.appendChild(buildCard(e)); });
+    list.forEach(p => { addMarker(p); container.appendChild(buildCard(p)); });
   }
   updateCount();
 }
@@ -629,25 +794,16 @@ async function loadAll() {
 document.getElementById('search-input').addEventListener('input', function () {
   const q = this.value.toLowerCase();
   document.querySelectorAll('.entry-card').forEach(card => {
-    const text = card.textContent.toLowerCase();
-    card.style.display = text.includes(q) ? '' : 'none';
+    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Count ─────────────────────────────────────────────────────────────────────
 function updateCount() {
-  document.getElementById('entry-count').textContent = allEntries.length;
-  const container = document.getElementById('entries-list');
-  if (!allEntries.length && !container.querySelector('.entry-card')) {
-    container.innerHTML = '<div class="empty-state">No addresses yet.<br>Add one above or click the map.</div>';
-  }
+  document.getElementById('entry-count').textContent = allPins.length;
 }
 
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-// ── Boot ───────────────────────────────────────────────────────────────────────
+// ── Boot ──────────────────────────────────────────────────────────────────────
 loadAll();
 </script>
 </body>
