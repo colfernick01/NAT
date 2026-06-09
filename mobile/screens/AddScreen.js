@@ -4,6 +4,7 @@ import {
   ScrollView, Image, Alert, ActivityIndicator,
   KeyboardAvoidingView, Platform, FlatList,
 } from 'react-native';
+import { useAuth } from '@clerk/clerk-expo';
 import { API_BASE } from '../config';
 
 export default function AddScreen({ navigation }) {
@@ -18,6 +19,7 @@ export default function AddScreen({ navigation }) {
 
   const [notes, setNotes]   = useState('');
   const [saving, setSaving] = useState(false);
+  const { getToken }        = useAuth();
 
   const debounceRef = useRef(null);
 
@@ -91,9 +93,10 @@ export default function AddScreen({ navigation }) {
 
     setSaving(true);
     try {
+      const token = await getToken();
       const res = await fetch(`${API_BASE}/api/pins`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           tiktok_url:    tiktokUrl.trim(),
           title:         ttData?.title || '',

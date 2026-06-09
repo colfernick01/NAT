@@ -1,36 +1,60 @@
 const express = require('express');
-const Database = require('better-sqlite3');
-const path = require('path');
-const https = require('https');
+const { Pool } = require('pg');
+const path    = require('path');
+const https   = require('https');
+const { verifyToken } = require('@clerk/backend');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
-const DB_PATH = process.env.DB_PATH || 'tiktok_map.db';
 
-const db = new Database(DB_PATH);
+// ── PostgreSQL ───────────────────────────────────────────────────────────────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS pins (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tiktok_url TEXT NOT NULL,
-    title TEXT,
-    thumbnail_url TEXT,
-    author TEXT,
-    location_name TEXT NOT NULL,
-    lat REAL NOT NULL,
-    lng REAL NOT NULL,
-    notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pins (
+      id            SERIAL PRIMARY KEY,
+      user_id       TEXT NOT NULL,
+      tiktok_url    TEXT NOT NULL,
+      title         TEXT    DEFAULT '',
+      thumbnail_url TEXT    DEFAULT '',
+      author        TEXT    DEFAULT '',
+      location_name TEXT NOT NULL,
+      lat           REAL NOT NULL,
+      lng           REAL NOT NULL,
+      notes         TEXT    DEFAULT '',
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS pins_user_idx ON pins(user_id)`);
+}
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+// ── Auth middleware ──────────────────────────────────────────────────────────
+async function requireAuth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header) return res.status(401).json({ error: 'Unauthorized' });
+  const token = header.replace('Bearer ', '');
+  try {
+    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+    req.userId = payload.sub;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function httpsGet(url, headers = {}) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', ...headers } }, (res) => {
-      // follow one redirect
+    https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+        ...headers,
+      },
+    }, (res) => {
       if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
         return httpsGet(res.headers.location, headers).then(resolve).catch(reject);
       }
@@ -42,7 +66,6 @@ function httpsGet(url, headers = {}) {
 }
 
 function extractLocation(html) {
-  // TikTok embeds a JSON blob — try several known field patterns for POI/location
   const patterns = [
     /"poi":\s*\{[^}]*"name"\s*:\s*"([^"]+)"/,
     /"locationCreated"\s*:\s*"([^"]+)"/,
@@ -51,18 +74,32 @@ function extractLocation(html) {
   ];
   for (const re of patterns) {
     const m = html.match(re);
-    if (m && m[1] && m[1].length > 1) return decodeURIComponent(m[1].replace(/\\u([\dA-Fa-f]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))));
+    if (m && m[1] && m[1].length > 1) {
+      return decodeURIComponent(
+        m[1].replace(/\\u([\dA-Fa-f]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+      );
+    }
   }
   return null;
 }
 
-// Proxy TikTok oEmbed + attempt location extraction
+app.use(express.json());
+
+// Inject Clerk publishable key into the web app
+app.get('/', (req, res) => {
+  const html = require('fs').readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const key  = process.env.CLERK_PUBLISHABLE_KEY || 'pk_live_YOUR_KEY';
+  res.send(html.replace('</head>', `<script>window.__CLERK_KEY__="${key}"</script></head>`));
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ── TikTok oEmbed proxy (public) ─────────────────────────────────────────────
 app.get('/api/tiktok-oembed', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'url required' });
 
   try {
-    // Fetch oEmbed and page HTML in parallel
     const [oembedBody, pageHtml] = await Promise.all([
       httpsGet(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`),
       httpsGet(url).catch(() => ''),
@@ -71,44 +108,50 @@ app.get('/api/tiktok-oembed', async (req, res) => {
     let title = '', thumbnail_url = '', author = '';
     try {
       const json = JSON.parse(oembedBody);
-      title         = json.title        || '';
+      title         = json.title         || '';
       thumbnail_url = json.thumbnail_url || '';
       author        = json.author_name   || '';
-    } catch { /* oEmbed failed, continue with page data */ }
+    } catch { /* oEmbed unavailable */ }
 
-    const location = extractLocation(pageHtml);
-
-    res.json({ title, thumbnail_url, author, location: location || null });
+    res.json({ title, thumbnail_url, author, location: extractLocation(pageHtml) || null });
   } catch {
     res.status(502).json({ error: 'Failed to reach TikTok' });
   }
 });
 
-app.get('/api/pins', (req, res) => {
-  const rows = db.prepare('SELECT * FROM pins ORDER BY created_at DESC').all();
+// ── Pins API (all routes require auth) ───────────────────────────────────────
+app.get('/api/pins', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT * FROM pins WHERE user_id = $1 ORDER BY created_at DESC',
+    [req.userId]
+  );
   res.json(rows);
 });
 
-app.post('/api/pins', (req, res) => {
+app.post('/api/pins', requireAuth, async (req, res) => {
   const { tiktok_url, title, thumbnail_url, author, location_name, lat, lng, notes } = req.body;
   if (!tiktok_url || !location_name || lat == null || lng == null) {
     return res.status(400).json({ error: 'tiktok_url, location_name, lat, and lng are required' });
   }
-  const stmt = db.prepare(
-    'INSERT INTO pins (tiktok_url, title, thumbnail_url, author, location_name, lat, lng, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  const { rows } = await pool.query(
+    `INSERT INTO pins (user_id, tiktok_url, title, thumbnail_url, author, location_name, lat, lng, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [req.userId, tiktok_url.trim(), title||'', thumbnail_url||'', author||'',
+     location_name.trim(), lat, lng, notes||'']
   );
-  const result = stmt.run(
-    tiktok_url.trim(), title || '', thumbnail_url || '', author || '',
-    location_name.trim(), lat, lng, notes ? notes.trim() : ''
-  );
-  const row = db.prepare('SELECT * FROM pins WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(row);
+  res.status(201).json(rows[0]);
 });
 
-app.delete('/api/pins/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM pins WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+app.delete('/api/pins/:id', requireAuth, async (req, res) => {
+  const { rowCount } = await pool.query(
+    'DELETE FROM pins WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.userId]
+  );
+  if (rowCount === 0) return res.status(404).json({ error: 'Not found' });
   res.json({ success: true });
 });
 
-app.listen(PORT, () => console.log(`TikTok Map running at http://localhost:${PORT}`));
+// ── Boot ─────────────────────────────────────────────────────────────────────
+initDb()
+  .then(() => app.listen(PORT, () => console.log(`TikTok Map running on port ${PORT}`)))
+  .catch(err => { console.error('DB init failed:', err); process.exit(1); });

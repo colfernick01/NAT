@@ -17,6 +17,21 @@
       color: #eee;
     }
 
+    /* ── Auth screen ── */
+    #auth-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 9999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+    #auth-screen.visible { display: flex; }
+    #clerk-mount { width: 100%; max-width: 420px; }
+
     /* ── Sidebar ── */
     #sidebar {
       width: 360px;
@@ -554,6 +569,16 @@
 
 <div id="map"></div>
 
+<!-- Auth screen — shown when not signed in -->
+<div id="auth-screen">
+  <div style="text-align:center;margin-bottom:24px;">
+    <div style="font-size:2.5rem;margin-bottom:8px;">🎵</div>
+    <div style="font-size:1.4rem;font-weight:800;color:#fff;">TikTok Map</div>
+    <div style="font-size:0.85rem;color:#666;margin-top:4px;">Sign in to save your places</div>
+  </div>
+  <div id="clerk-mount"></div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
@@ -953,8 +978,69 @@ function updateCount() {
   document.getElementById('entry-count').textContent = allPins.length;
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
-loadAll();
+// ── Auth token helper ─────────────────────────────────────────────────────────
+let _clerkSession = null;
+
+async function authHeaders() {
+  if (!_clerkSession) return {};
+  const token = await _clerkSession.getToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+// Patch fetch calls to include auth headers
+const _origFetch = window.fetch.bind(window);
+window.fetch = async function(url, opts = {}) {
+  if (typeof url === 'string' && url.startsWith('/api/')) {
+    const auth = await authHeaders();
+    opts.headers = { ...(opts.headers || {}), ...auth };
+  }
+  return _origFetch(url, opts);
+};
+
+// ── Boot with Clerk ────────────────────────────────────────────────────────────
+async function boot() {
+  const publishableKey = window.__CLERK_KEY__;
+  if (!publishableKey || publishableKey === 'pk_live_YOUR_KEY') {
+    // No Clerk key set — run without auth (dev mode)
+    loadAll();
+    return;
+  }
+
+  const { Clerk } = await import('https://esm.sh/@clerk/clerk-js@latest');
+  const clerk = new Clerk(publishableKey);
+  await clerk.load();
+
+  if (clerk.user) {
+    _clerkSession = clerk.session;
+    addSignOutButton(clerk);
+    loadAll();
+  } else {
+    document.getElementById('auth-screen').classList.add('visible');
+    clerk.mountSignIn(document.getElementById('clerk-mount'), {
+      afterSignInUrl: window.location.href,
+      afterSignUpUrl: window.location.href,
+    });
+    clerk.addListener(({ user, session }) => {
+      if (user) {
+        _clerkSession = session;
+        document.getElementById('auth-screen').classList.remove('visible');
+        addSignOutButton(clerk);
+        loadAll();
+      }
+    });
+  }
+}
+
+function addSignOutButton(clerk) {
+  const header = document.getElementById('sidebar-header');
+  const btn = document.createElement('button');
+  btn.textContent = 'Sign out';
+  btn.style.cssText = 'margin-top:6px;padding:4px 10px;background:#1a1a1a;color:#888;border:1px solid #333;border-radius:6px;font-size:0.72rem;cursor:pointer;';
+  btn.onclick = () => clerk.signOut().then(() => location.reload());
+  header.appendChild(btn);
+}
+
+boot();
 </script>
 </body>
 </html>

@@ -5,16 +5,21 @@ import {
 } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
+import { useAuth } from '@clerk/clerk-expo';
 import { API_BASE } from '../config';
 
 export default function MapScreen({ navigation }) {
   const [pins, setPins]       = useState([]);
   const [loading, setLoading] = useState(true);
   const mapRef                = useRef(null);
+  const { getToken }          = useAuth();
 
   const loadPins = async () => {
     try {
-      const res  = await fetch(`${API_BASE}/api/pins`);
+      const token = await getToken();
+      const res  = await fetch(`${API_BASE}/api/pins`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setPins(data);
     } catch (e) {

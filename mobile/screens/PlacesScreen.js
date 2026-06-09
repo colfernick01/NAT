@@ -5,17 +5,22 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useAuth } from '@clerk/clerk-expo';
 import { API_BASE } from '../config';
 
 export default function PlacesScreen({ navigation }) {
   const [pins, setPins]         = useState([]);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { getToken }            = useAuth();
 
   const loadPins = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const res  = await fetch(`${API_BASE}/api/pins`);
+      const token = await getToken();
+      const res  = await fetch(`${API_BASE}/api/pins`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setPins(data);
     } catch {
@@ -39,7 +44,11 @@ export default function PlacesScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${API_BASE}/api/pins/${pin.id}`, { method: 'DELETE' });
+              const token = await getToken();
+              await fetch(`${API_BASE}/api/pins/${pin.id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+              });
               setPins(prev => prev.filter(p => p.id !== pin.id));
             } catch {
               Alert.alert('Error', 'Could not delete. Try again.');
